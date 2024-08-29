@@ -1,0 +1,19 @@
+[[mapping]]
+variable = 'Lens'
+match_values = ['Nikon AF-S NIKKOR 105mm f/1.4E ED']
+assign_value = '105mm f/1.4E'
+
+[[mapping]]
+variable = 'Lens'
+match_values = ['15 mm f/4.5']
+assign_value = '15mm f/4.5'
+
+[[mapping]]
+variable = 'LensModel'
+match_values = ['Nikon AF-S NIKKOR 105mm f/1.4E ED']
+assign_value = '105mm f/1.4E'
+
+[[mapping]]
+variable = 'LensModel'
+match_values = ['15 mm f/4.5']
+assign_value = '15mm f/4.5'

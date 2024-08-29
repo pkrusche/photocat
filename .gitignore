@@ -1,0 +1,7 @@
+/target
+data/*
+!/data/.gitignore
+!/data/mapping.toml
+.DS_Store
+*.swp
+.vscode
