@@ -35,7 +35,10 @@ SELECT sha256,
        Software,
        FocalLength,
        FocalLengthIn35mmFormat,
-       strptime(COALESCE(CreateDate, DateTimeOriginal), '%Y:%m:%d %H:%M:%S') AS DateTaken,
+       strptime(COALESCE(CreateDate, DateTimeOriginal),
+           ['%Y:%m:%d %H:%M:%S.%f', -- Format with milliseconds
+            '%Y:%m:%d %H:%M:%S']    -- Format without milliseconds
+       ) AS DateTaken,
        COALESCE(
         Lens,
         CASE
