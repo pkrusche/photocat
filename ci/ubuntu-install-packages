@@ -1,4 +1,7 @@
 #!/bin/sh
+# Sourced from https://github.com/BurntSushi/ripgrep/
+# Ripgrep is licensed under the MIT license:
+# https://github.com/BurntSushi/ripgrep/blob/master/LICENSE-MIT
 
 if ! command -V sudo; then
   apt-get update
