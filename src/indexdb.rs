@@ -96,18 +96,11 @@ pub fn init_connection(path: &str) {
             .expect("Cannot load JSON module in DuckDB");
     }
     {
-        // Backup current working directory
-        let current_dir = std::env::current_dir().expect("Failed to get current working directory");
-
-        // Change directory to the specified path
-        std::env::set_current_dir(path).expect("Failed to change directory");
-
         // run JSON ingestion
-        let sql_str = include_str!("meta.sql");
+        let sql_str = include_str!("meta.sql").replace("{{datapath}}", path);
         if let Err(e) = run_sql(&conn, &sql_str) {
             error!("Failed to run meta SQL command {}", e);
         }
-        std::env::set_current_dir(current_dir).expect("Cannot change directory");
     }
 }
 
