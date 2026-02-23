@@ -216,6 +216,7 @@ mod tests {
 
     #[test]
     fn test_date_summary() {
+        colored::control::set_override(true);
         let mut summary = DateSummary::new();
         let date1 = DateTime::<Utc>::from_naive_utc_and_offset(
             NaiveDateTime::parse_from_str("2022-09-05 23:56:04", "%Y-%m-%d %H:%M:%S").unwrap(),
@@ -258,6 +259,7 @@ mod tests {
 
     #[test]
     fn test_date_summary_wrapping() {
+        colored::control::set_override(true);
         let mut summary = DateSummary::new_wrapping(4);
         let date1 = DateTime::<Utc>::from_naive_utc_and_offset(
             NaiveDateTime::parse_from_str("2022-09-05 23:56:04", "%Y-%m-%d %H:%M:%S").unwrap(),

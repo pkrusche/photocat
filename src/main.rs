@@ -11,10 +11,12 @@ use summarystats::SummaryStats;
 use tokio_macros as _;
 use walkdir::WalkDir;
 
+mod catalog;
 mod datesummary;
 mod fileindex;
 mod indexdb;
 mod jsonmeta;
+mod pdfexport;
 mod processing;
 mod summarystats;
 mod valuecountsummary;
@@ -88,6 +90,30 @@ struct Args {
 
     #[arg(long, default_values_t = default_extensions())]
     allowed_extensions: Vec<String>,
+
+    /// Output file path for catalog / PDF export
+    #[arg(short('o'), long)]
+    output: Option<String>,
+
+    /// Page format for PDF export (e.g. "A4-landscape", "A4-portrait", "letter-landscape")
+    #[arg(long, default_value_t = String::from("A4-landscape"))]
+    page_format: String,
+
+    /// Number of images per page in PDF: 1-4 or "auto" (groups by time proximity)
+    #[arg(long, default_value_t = String::from("auto"))]
+    images_per_page: String,
+
+    /// Time threshold in minutes for "auto" layout grouping (default: 10)
+    #[arg(long, default_value_t = 10)]
+    auto_group_minutes: u64,
+
+    /// Title for the catalog document
+    #[arg(long)]
+    catalog_title: Option<String>,
+
+    /// Include EXIF metadata (camera, lens, ISO) in catalog entries
+    #[arg(long)]
+    catalog_meta: Option<bool>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
@@ -102,6 +128,10 @@ enum Action {
     Summarize,
     /// List metadata columns available
     MetaColumns,
+    /// Generate a Markdown catalog of matching photos
+    Catalog,
+    /// Export a catalog Markdown file to PDF
+    ExportPdf,
 }
 
 #[tokio::main]
@@ -199,6 +229,54 @@ async fn main() {
             }
             Err(e) => println!("No metadata columns are available. {:?}", e),
         }
+    } else if args.action == Action::Catalog {
+        let mut records: Vec<IndexFile> = Vec::new();
+        query_fileindex(
+            &args.list_sha,
+            &filenames,
+            &args.list_url,
+            &args.list_limit,
+            &min_date,
+            &max_date,
+            |record| records.push(record),
+        )
+        .expect("Query to fileindex failed");
+
+        let options = catalog::CatalogOptions {
+            title: args
+                .catalog_title
+                .unwrap_or_else(|| String::from("Photo Catalog")),
+            include_meta: args.catalog_meta.unwrap_or(false),
+        };
+
+        let output_path = args.output.unwrap_or_else(|| String::from("catalog.md"));
+        let mut file = std::fs::File::create(&output_path).expect("Failed to create output file");
+        catalog::generate_catalog(&records, &options, &mut file)
+            .expect("Failed to generate catalog");
+        println!("Catalog written to {}", output_path);
+    } else if args.action == Action::ExportPdf {
+        let input = args
+            .photo_location
+            .first()
+            .expect("Please provide a catalog Markdown file path as an argument")
+            .clone();
+        let output_path = args.output.unwrap_or_else(|| String::from("catalog.pdf"));
+
+        let page_format =
+            pdfexport::parse_page_format(&args.page_format).expect("Invalid --page-format");
+        let layout_mode =
+            pdfexport::LayoutMode::from_args(&args.images_per_page, args.auto_group_minutes)
+                .expect("Invalid --images-per-page");
+
+        let pdf_options = pdfexport::ExportOptions {
+            page_format,
+            layout_mode,
+            margin_mm: 10.0,
+        };
+
+        pdfexport::export_pdf(&input, &output_path, &pdf_options)
+            .expect("Failed to export PDF");
+        println!("PDF written to {}", output_path);
     } else if args.action == Action::Index || args.action == Action::List {
         // enumerate files specified in the photo location
         let files = args
