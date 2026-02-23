@@ -45,6 +45,64 @@ photocat -l ./data summarize -d 2024-06-01 -D 2024-09-01
 > the creation time of the file will be used. When this happens, the summary will list for how
 > many files no exif data was available.
 
+## Markdown catalog and PDF export
+
+Photocat can generate a Markdown catalog from filtered images, then render that catalog into a PDF layout.
+
+### 1) Generate a catalog (`catalog`)
+
+Create a Markdown file with image links, grouped by date:
+
+```bash
+photocat -l ./data catalog -d 2024-07-01 -D 2024-08-01 -o july-catalog.md
+```
+
+Useful options:
+
+- `-o, --output <path>`: output markdown path (default: `catalog.md`)
+- `--catalog-title <title>`: title shown at the top of the markdown
+- `--catalog-meta <true|false>`: include camera / lens / ISO line per image
+
+Example with title and metadata:
+
+```bash
+photocat -l ./data catalog \
+  -d 2024-07-01 -D 2024-08-01 \
+  --catalog-title "Summer Vacation 2024" \
+  --catalog-meta true \
+  -o vacation.md
+```
+
+### 2) Export a catalog to PDF (`export-pdf`)
+
+Render a catalog markdown file into a PDF with 1-4 images per page, or automatic grouping:
+
+```bash
+photocat -l ./data export-pdf july-catalog.md -o july-catalog.pdf
+```
+
+Useful options:
+
+- `-o, --output <path>`: output PDF path (default: `catalog.pdf`)
+- `--page-format <spec>`: page size/orientation, e.g. `A4-landscape`, `A4-portrait`, `letter-landscape`
+- `--images-per-page <auto|1|2|3|4>`: layout mode (default: `auto`)
+- `--auto-group-minutes <n>`: time threshold used by `auto` mode (default: `10`)
+
+Examples:
+
+```bash
+# Auto layout with tighter grouping (5 minutes)
+photocat -l ./data export-pdf vacation.md -o vacation.pdf --auto-group-minutes 5
+
+# Fixed 4-up layout on letter landscape
+photocat -l ./data export-pdf vacation.md -o vacation-4up.pdf \
+  --page-format letter-landscape --images-per-page 4
+
+# One image per page on A4 portrait
+photocat -l ./data export-pdf vacation.md -o vacation-fullpage.pdf \
+  --page-format A4-portrait --images-per-page 1
+```
+
 ## EXIF Metadata Collection
 
 When running EXIFTool as part of the indexing step like shown above, we create a set of JSON
