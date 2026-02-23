@@ -98,7 +98,7 @@ pub fn auto_group_pages(entries: Vec<CatalogEntry>, threshold: chrono::Duration)
         let should_extend = match (&current.last().unwrap().taken_at, &entry.taken_at) {
             (Some(prev), Some(curr)) => {
                 let diff = *curr - *prev;
-                diff >= chrono::Duration::zero() && diff <= threshold
+                diff.abs() <= threshold
             }
             _ => false,
         };
@@ -183,11 +183,47 @@ pub fn calculate_grid_cells(
 /// Parse a catalog Markdown file into a list of CatalogEntry structs.
 /// Extracts image links and <!-- taken: TIMESTAMP --> HTML comments.
 pub fn parse_catalog_markdown(content: &str) -> Vec<CatalogEntry> {
+    fn is_probable_image_link(link: &str) -> bool {
+        let ext = if let Ok(parsed) = url::Url::parse(link) {
+            if parsed.scheme() != "file" {
+                return false;
+            }
+            std::path::Path::new(parsed.path())
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|s| s.to_ascii_lowercase())
+        } else {
+            std::path::Path::new(link)
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|s| s.to_ascii_lowercase())
+        };
+
+        matches!(
+            ext.as_deref(),
+            Some("jpg")
+                | Some("jpeg")
+                | Some("png")
+                | Some("tif")
+                | Some("tiff")
+                | Some("webp")
+                | Some("bmp")
+                | Some("gif")
+                | Some("heic")
+                | Some("heif")
+                | Some("dng")
+                | Some("arw")
+                | Some("nef")
+                | Some("raw")
+        )
+    }
+
     let mut entries: Vec<CatalogEntry> = Vec::new();
     let parser = Parser::new(content);
 
     let mut pending_url: Option<String> = None;
     let mut pending_caption: Option<String> = None;
+    let mut last_entry_idx: Option<usize> = None;
 
     for event in parser {
         match event {
@@ -202,11 +238,16 @@ pub fn parse_catalog_markdown(content: &str) -> Vec<CatalogEntry> {
             }
             Event::End(TagEnd::Link) => {
                 if let (Some(url), Some(caption)) = (pending_url.take(), pending_caption.take()) {
-                    entries.push(CatalogEntry {
-                        url,
-                        caption,
-                        taken_at: None,
-                    });
+                    if is_probable_image_link(&url) {
+                        entries.push(CatalogEntry {
+                            url,
+                            caption,
+                            taken_at: None,
+                        });
+                        last_entry_idx = Some(entries.len() - 1);
+                    } else {
+                        last_entry_idx = None;
+                    }
                 }
             }
             Event::Html(html) | Event::InlineHtml(html) => {
@@ -218,8 +259,10 @@ pub fn parse_catalog_markdown(content: &str) -> Vec<CatalogEntry> {
                 {
                     let ts_str = inner.trim();
                     if let Ok(dt) = ts_str.parse::<DateTime<Utc>>() {
-                        if let Some(entry) = entries.last_mut() {
-                            entry.taken_at = Some(dt);
+                        if let Some(idx) = last_entry_idx.take() {
+                            if let Some(entry) = entries.get_mut(idx) {
+                                entry.taken_at = Some(dt);
+                            }
                         }
                     }
                 }
@@ -441,6 +484,62 @@ mod tests {
     }
 
     #[test]
+    fn test_auto_group_pages_threshold_is_inclusive() {
+        let make = |ts: &str| CatalogEntry {
+            url: "file:///x.jpg".to_string(),
+            caption: "x".to_string(),
+            taken_at: Some(ts.parse::<DateTime<Utc>>().unwrap()),
+        };
+
+        let entries = vec![
+            make("2024-07-05T14:00:00Z"),
+            make("2024-07-05T14:10:00Z"),
+        ];
+        let pages = auto_group_pages(entries, chrono::Duration::minutes(10));
+        assert_eq!(pages.len(), 1);
+        assert_eq!(pages[0].entries.len(), 2);
+    }
+
+    #[test]
+    fn test_auto_group_pages_reordered_timestamps_still_group() {
+        let make = |ts: &str| CatalogEntry {
+            url: "file:///x.jpg".to_string(),
+            caption: "x".to_string(),
+            taken_at: Some(ts.parse::<DateTime<Utc>>().unwrap()),
+        };
+
+        let entries = vec![
+            make("2024-07-05T14:05:00Z"),
+            make("2024-07-05T14:00:00Z"),
+            make("2024-07-05T13:56:00Z"),
+        ];
+        let pages = auto_group_pages(entries, chrono::Duration::minutes(10));
+        assert_eq!(pages.len(), 1);
+        assert_eq!(pages[0].entries.len(), 3);
+    }
+
+    #[test]
+    fn test_auto_group_pages_missing_timestamp_splits_groups() {
+        let make = |name: &str, ts: Option<&str>| CatalogEntry {
+            url: format!("file:///{}.jpg", name),
+            caption: name.to_string(),
+            taken_at: ts.map(|t| t.parse::<DateTime<Utc>>().unwrap()),
+        };
+
+        let entries = vec![
+            make("a", Some("2024-07-05T14:00:00Z")),
+            make("b", Some("2024-07-05T14:05:00Z")),
+            make("c", None),
+            make("d", Some("2024-07-05T14:06:00Z")),
+        ];
+        let pages = auto_group_pages(entries, chrono::Duration::minutes(10));
+        assert_eq!(pages.len(), 3);
+        assert_eq!(pages[0].entries.len(), 2);
+        assert_eq!(pages[1].entries.len(), 1);
+        assert_eq!(pages[2].entries.len(), 1);
+    }
+
+    #[test]
     fn test_calculate_grid_cells_counts() {
         for n in 1u8..=4 {
             let cells = calculate_grid_cells(297.0, 210.0, 10.0, n);
@@ -462,6 +561,21 @@ mod tests {
         assert!(entries[0].taken_at.is_some());
         assert_eq!(entries[1].url, "file:///photos/b.jpg");
         assert!(entries[1].taken_at.is_some());
+    }
+
+    #[test]
+    fn test_parse_catalog_markdown_ignores_non_image_links() {
+        let md = r#"# Links
+
+- [Reference](https://example.com/ref)
+- [Readme](file:///docs/readme.md) <!-- taken: 2024-07-05T12:00:00Z -->
+- [a.jpg](file:///photos/a.jpg) <!-- taken: 2024-07-05T14:00:00Z -->
+"#;
+
+        let entries = parse_catalog_markdown(md);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].url, "file:///photos/a.jpg");
+        assert!(entries[0].taken_at.is_some());
     }
 
     #[test]

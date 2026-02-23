@@ -97,6 +97,9 @@ pub fn generate_catalog(
         let day_key = taken_at.format("%Y-%m-%d").to_string();
         by_date.entry(day_key).or_default().push(record);
     }
+    for entries in by_date.values_mut() {
+        entries.sort_by_key(|record| get_taken_at(record));
+    }
 
     let today = Utc::now().format("%Y-%m-%d");
     writeln!(writer, "# {}", options.title)?;
@@ -169,5 +172,24 @@ mod tests {
         assert!(output.contains("## 2024-07-06"));
         assert!(output.contains("<!-- taken: 2024-07-05T14:00:00Z -->"));
         assert!(output.contains("<!-- taken: 2024-07-06T09:00:00Z -->"));
+    }
+
+    #[test]
+    fn test_generate_catalog_sorts_within_day() {
+        let records = vec![
+            make_record("file:///photos/late.jpg", "2024-07-05T15:00:00Z"),
+            make_record("file:///photos/early.jpg", "2024-07-05T14:00:00Z"),
+        ];
+        let options = CatalogOptions {
+            title: "Test".to_string(),
+            include_meta: false,
+        };
+        let mut buf: Vec<u8> = Vec::new();
+        generate_catalog(&records, &options, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+
+        let early_idx = output.find("early.jpg").unwrap();
+        let late_idx = output.find("late.jpg").unwrap();
+        assert!(early_idx < late_idx);
     }
 }
