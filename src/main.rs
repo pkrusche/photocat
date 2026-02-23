@@ -274,8 +274,7 @@ async fn main() {
             margin_mm: 10.0,
         };
 
-        pdfexport::export_pdf(&input, &output_path, &pdf_options)
-            .expect("Failed to export PDF");
+        pdfexport::export_pdf(&input, &output_path, &pdf_options).expect("Failed to export PDF");
         println!("PDF written to {}", output_path);
     } else if args.action == Action::Index || args.action == Action::List {
         // enumerate files specified in the photo location

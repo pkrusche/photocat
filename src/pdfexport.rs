@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
 use ::image::GenericImageView;
+use chrono::{DateTime, Utc};
 use log::{error, warn};
 use printpdf::*;
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
@@ -26,7 +26,12 @@ pub fn parse_page_format(spec: &str) -> std::result::Result<PageFormat, String> 
     let (w, h) = match base {
         "a4" => (210.0_f64, 297.0_f64),
         "letter" => (215.9_f64, 279.4_f64),
-        other => return Err(format!("Unknown page format '{}'. Use a4 or letter.", other)),
+        other => {
+            return Err(format!(
+                "Unknown page format '{}'. Use a4 or letter.",
+                other
+            ))
+        }
     };
 
     Ok(if landscape {
@@ -348,9 +353,7 @@ pub fn export_pdf(
         let n = group.entries.len() as u8;
         let cells = calculate_grid_cells(pw, ph, margin, n);
 
-        for (entry, (cell_x, cell_y, cell_w, cell_h)) in
-            group.entries.iter().zip(cells.iter())
-        {
+        for (entry, (cell_x, cell_y, cell_w, cell_h)) in group.entries.iter().zip(cells.iter()) {
             let path = match url_to_path(&entry.url) {
                 Some(p) => p,
                 None => {
@@ -491,10 +494,7 @@ mod tests {
             taken_at: Some(ts.parse::<DateTime<Utc>>().unwrap()),
         };
 
-        let entries = vec![
-            make("2024-07-05T14:00:00Z"),
-            make("2024-07-05T14:10:00Z"),
-        ];
+        let entries = vec![make("2024-07-05T14:00:00Z"), make("2024-07-05T14:10:00Z")];
         let pages = auto_group_pages(entries, chrono::Duration::minutes(10));
         assert_eq!(pages.len(), 1);
         assert_eq!(pages[0].entries.len(), 2);
