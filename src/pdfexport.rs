@@ -334,7 +334,8 @@ fn try_convert_to_png(path: &str) -> Option<String> {
     ));
     let tmp_str = tmp.to_string_lossy().to_string();
 
-    let convert_ok = matches!(Command::new("convert").arg(path).arg(&tmp_str).status(), Ok(s) if s.success());
+    let convert_ok =
+        matches!(Command::new("convert").arg(path).arg(&tmp_str).status(), Ok(s) if s.success());
     let magick_ok = matches!(
         Command::new("magick")
             .arg("convert")
@@ -357,12 +358,8 @@ fn load_image_for_pdf(path: &str) -> std::result::Result<::image::DynamicImage, 
         return ::image::open(path).map_err(|e| e.to_string());
     }
 
-    let converted = try_convert_to_png(path).ok_or_else(|| {
-        format!(
-            "cannot convert '{}' to PNG using imagemagick convert",
-            path
-        )
-    })?;
+    let converted = try_convert_to_png(path)
+        .ok_or_else(|| format!("cannot convert '{}' to PNG using imagemagick convert", path))?;
     let opened = ::image::open(&converted).map_err(|e| e.to_string());
     let _ = std::fs::remove_file(&converted);
     opened
